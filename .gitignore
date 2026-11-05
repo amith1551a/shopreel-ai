@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+.env.*
+!.env.example
+node_modules/
+dist/
+test-results/
+playwright-report/
+*.tsbuildinfo
+browser-tests/.auth/
+data/*
+outputs/*
+third_party/*
+!third_party/README.md

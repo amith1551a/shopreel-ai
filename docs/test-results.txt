@@ -1,0 +1,24 @@
+test_approval_required_before_schedule (test_studio.StudioTests.test_approval_required_before_schedule) ... ok
+test_approve_then_plan_is_local_only (test_studio.StudioTests.test_approve_then_plan_is_local_only) ... ok
+test_both_templates_create_vertical_scenes (test_studio.StudioTests.test_both_templates_create_vertical_scenes) ... ok
+test_create_draft_and_caption (test_studio.StudioTests.test_create_draft_and_caption) ... ok
+test_home_has_real_local_mode_notice (test_studio.StudioTests.test_home_has_real_local_mode_notice) ... ok
+test_invalid_image_is_rejected (test_studio.StudioTests.test_invalid_image_is_rejected) ... ok
+test_invalid_theme (test_studio.StudioTests.test_invalid_theme) ... ok
+test_length_limit (test_studio.StudioTests.test_length_limit) ... ok
+test_library_persists_after_app_restart (test_studio.StudioTests.test_library_persists_after_app_restart) ... ok
+test_media_allowlist (test_studio.StudioTests.test_media_allowlist) ... ok
+test_missing_image (test_studio.StudioTests.test_missing_image) ... ok
+test_missing_title (test_studio.StudioTests.test_missing_title) ... ok
+test_past_and_naive_schedule_rejected (test_studio.StudioTests.test_past_and_naive_schedule_rejected) ... ok
+test_reject_dns_rebinding_host (test_studio.StudioTests.test_reject_dns_rebinding_host) ... ok
+test_reject_mutation_without_token (test_studio.StudioTests.test_reject_mutation_without_token) ... ok
+test_renderer_failure_cleans_files (test_studio.StudioTests.test_renderer_failure_cleans_files) ... ok
+test_repeated_approval_rejected (test_studio.StudioTests.test_repeated_approval_rejected) ... ok
+test_schedule_json_type_validation (test_studio.StudioTests.test_schedule_json_type_validation) ... ok
+test_video_supports_range_requests (test_studio.StudioTests.test_video_supports_range_requests) ... ok
+
+----------------------------------------------------------------------
+Ran 19 tests in 0.229s
+
+OK

@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="studio-token" content="{{ csrf }}">
+  <title>ShopReelAI - Product video generator</title>
+  <link rel="stylesheet" href="/static/style.css"><link rel="stylesheet" href="/static/generator.css"><script src="/static/app.js" defer></script>
+</head>
+<body>
+<aside class="sidebar">
+  <a class="brand" href="/">ShopReel<span class="ai">AI</span></a>
+  <div class="workspace-label">YOUR WORKSPACE</div>
+  <div class="workspace">Product video studio<small>Local library / paid cloud scenes</small></div>
+  <nav aria-label="Studio navigation"><a class="nav-active" href="#studio">Video studio</a><a href="#jobs">Generation jobs</a><a href="#library">My videos &amp; projects</a></nav>
+  <div class="sidebar-bottom">Nothing publishes automatically.</div>
+</aside>
+<main id="studio">
+  <header class="topbar"><strong>Product video generator</strong><span class="local-pill">LOCAL EDITING + PAID CLOUD AI</span></header>
+  <section class="intro"><div><div class="eyebrow">PHOTO + PROMPT + PRICE</div><h1>Your product.<br>Your video idea.</h1><p>Plan first. Confirm the cost. Generate moving scenes.<br>Review the AI mockup before sharing anywhere.</p></div></section>
+  <div id="provider-status" class="tip" role="status">Checking provider setup...</div>
+  <p class="steps">1. Photo &amp; prompt &rarr; 2. Scene plan &amp; cost &rarr; 3. Generate &amp; edit &rarr; 4. Preview &amp; download</p>
+  <div class="studio-grid">
+    <section class="panel editor"><div class="panel-title"><h2>Create a product video</h2><span>01 / PLAN</span></div>
+      <form id="create-form">
+        <label for="image">Product photo (required)</label>
+        <label class="upload" for="image"><input id="image" name="image" type="file" accept="image/png,image/jpeg,image/webp" required><img id="upload-preview" alt="Selected product" hidden><span id="upload-copy"><strong>Choose your product photo</strong><small>PNG, JPG, WebP / 8 MB each / 128+ pixels per side / below 20 MP</small></span></label>
+        <p class="help">The main photo is the front/start view. Add other views only if you have them; unseen details are inferred.</p>
+        <details><summary>Optional reference photos</summary>
+          <label for="back">Back</label><input id="back" name="back" type="file" accept="image/png,image/jpeg,image/webp">
+          <label for="side">Side</label><input id="side" name="side" type="file" accept="image/png,image/jpeg,image/webp">
+          <label for="extra">Extra front/detail view</label><input id="extra" name="extra" type="file" accept="image/png,image/jpeg,image/webp">
+          <p class="help">Gen-4 Turbo uses one selected starting photo per scene. It does not combine these into a 360° scan or simultaneous multi-reference input.</p>
+        </details>
+        <label for="prompt">Video prompt (required)</label>
+        <textarea id="prompt" name="prompt" maxlength="600" rows="5" required placeholder="Create a trendy faceless ad for this anime graphic tee. Show someone wearing it beside a parked bike, close-ups of the artwork, and natural movement. End with the price and ‘Shop now — link in bio.’"></textarea>
+        <div class="form-row"><div><label for="price">Price (required)</label><input id="price" name="price" inputmode="decimal" maxlength="13" placeholder="24.00" required><small>Digits and decimal point only; no discounts inferred.</small></div><div><label for="currency">Currency</label><select id="currency" name="currency">{% for currency in currencies %}<option value="{{ currency }}"{% if currency == "USD" %} selected{% endif %}>{{ currency }}</option>{% endfor %}</select></div></div>
+        <label for="cta-choice">Call to action</label>
+        <select id="cta-choice" name="cta_choice">{% for cta in cta_options %}<option value="{{ cta }}">{{ cta }}</option>{% endfor %}<option value="custom">Custom text</option></select>
+        <label id="custom-cta-label" for="cta" hidden>Custom call to action</label><input id="cta" name="cta" maxlength="80" hidden disabled>
+        <p class="help">Tell viewers what to do after watching. Choose wording that matches where you will post.</p>
+        <details id="advanced"><summary>Advanced settings</summary>
+          <div class="form-row"><div><label for="duration">Generated scene duration</label><select id="duration" name="duration"><option value="5">5 seconds / 1 scene</option><option value="10">10 seconds / 2 scenes</option></select></div><div><label for="aspect-ratio">Aspect ratio</label><select id="aspect-ratio" name="aspect_ratio"><option value="9:16">9:16 / vertical</option><option value="16:9">16:9 / landscape</option><option value="1:1">1:1 / square</option></select></div></div>
+          <p class="help">A 2-second local price/CTA card is added. Only supported provider durations are offered.</p>
+          <label for="style">Model style</label><select id="style" name="style"><option value="faceless">Faceless (default)</option><option value="visible-model">Visible adult model</option></select>
+          <label for="scene-0-view">Scene 1 starting photo</label><select id="scene-0-view" name="scene_0_view"><option value="front">Main/front</option><option value="back">Back</option><option value="side">Side</option><option value="extra">Extra/detail</option></select>
+          <div id="scene-2-settings" hidden><label for="scene-1-view">Scene 2 starting photo</label><select id="scene-1-view" name="scene_1_view"><option value="front">Main/front</option><option value="back">Back</option><option value="side">Side</option><option value="extra">Extra/detail</option></select></div>
+          <label for="captions">Short local captions &amp; downloadable subtitles</label><select id="captions" name="captions"><option value="on">On</option><option value="off">Off</option></select>
+          <label for="audio">Audio</label><select id="audio" name="audio"><option value="silent">Silent (default)</option><option value="uploaded">Mix my uploaded music / voice recording</option></select>
+          <div id="audio-settings" hidden>
+            <label for="music">Optional licensed music (20 MB, max 5 minutes)</label><input id="music" name="music" type="file" accept="audio/mpeg,audio/wav,audio/x-wav,audio/mp4,audio/ogg,.mp3,.wav,.m4a,.ogg" disabled>
+            <label for="voice">Optional recorded voiceover (20 MB, max 5 minutes)</label><input id="voice" name="voice" type="file" accept="audio/mpeg,audio/wav,audio/x-wav,audio/mp4,audio/ogg,.mp3,.wav,.m4a,.ogg" disabled>
+          </div>
+          <label for="voiceover-language">Recorded voiceover language</label><select id="voiceover-language" name="voiceover_language"><option value="none">None / unspecified</option><option value="en">English</option><option value="es">Spanish</option><option value="fr">French</option><option value="hi">Hindi</option><option value="ja">Japanese</option><option value="other">Other</option></select>
+          <p class="help">No automatic speech generation or transcription. Uploaded recordings are mixed at full volume; music at 25%, trimmed to length. Captions are reviewed mockup labels, not speech transcripts.</p>
+          <label for="brand-name">Optional brand name</label><input id="brand-name" name="brand_name" maxlength="50">
+          <label for="logo">Optional logo (8 MB)</label><input id="logo" name="logo" type="file" accept="image/png,image/jpeg,image/webp">
+          <label for="product-url">Optional product URL (saved only)</label><input id="product-url" name="product_url" type="url" maxlength="500" placeholder="https://your-store.example/product">
+          <p class="help">No logo or URL is invented. URLs are never fetched; no clickable shopping link is added to an MP4.</p>
+        </details>
+        <button class="primary" id="generate-button" type="submit">Generate Video - show plan &amp; estimate</button>
+        <p class="fineprint">Planning is local and free. No paid request until you confirm below.</p>
+      </form>
+      <section id="scene-plan" hidden aria-labelledby="plan-heading">
+        <h3 id="plan-heading">Review your scene plan</h3><div id="plan-settings"></div><ol id="plan-scenes"></ol><div id="plan-warnings"></div>
+        <p id="plan-cost" class="result-title"></p>
+        <label class="consent"><input id="paid-consent" type="checkbox"> I have permission to use these images/artwork/audio and agree to send the photos and prompt to Runway for paid generation at the displayed estimate.</label>
+        <button id="confirm-button" class="primary" type="button" disabled>Confirm &amp; generate</button>
+      </section>
+    </section>
+    <section class="preview-column">
+      <div class="panel preview-panel"><div class="panel-title"><h2>Preview your video</h2><span>02 / REVIEW</span></div>
+        <div class="phone-frame"><div id="empty-preview"><h3>Your preview will appear here.</h3><p>Real moving scenes. Deterministic price &amp; CTA.</p></div><video id="video-preview" controls playsinline preload="metadata" hidden></video></div>
+        <div id="video-actions" hidden><p id="video-title" class="result-title"></p><p class="help">AI-generated scenes are mockups requiring product and rights review. Older saved videos may be template-based.</p>
+          <label for="caption">Sharing caption</label><textarea id="caption" readonly rows="4"></textarea>
+          <div class="action-row"><button type="button" class="secondary" id="approve-button">Approve this video</button><a id="download-link" class="download" download="shopreel.mp4">Download MP4</a></div>
+          <a id="subtitles-link" class="download" download="subtitles.srt" hidden>Download subtitles (SRT)</a><p id="approval-status" class="status-tag"></p>
+          <form id="schedule-form"><div class="queue-heading">OPTIONAL LOCAL POST PLAN / NEVER PUBLISHES</div><label for="channel">Channel</label><select id="channel"><option value="instagram">Instagram</option><option value="facebook">Facebook</option><option value="pinterest">Pinterest</option></select><label for="schedule-time">Your local date &amp; time</label><input id="schedule-time" type="datetime-local" required><button type="submit" class="secondary wide" id="schedule-button" disabled>Save local post plan</button></form>
+        </div>
+      </div>
+      <div class="tip"><div><strong>Review before you share.</strong><p>AI can alter artwork and invent unseen details. No accurate 360° scan or guaranteed character/garment lock. Price and CTA are added locally, not drawn by AI.</p></div></div>
+    </section>
+  </div>
+  <div id="notice" role="status" aria-live="polite" hidden></div>
+  <section id="jobs" class="library"><h2>Generation jobs</h2><p>Saved on this computer. Refreshing or closing the page does not lose progress. Keep the local server running.</p><div id="job-list"></div></section>
+  <section id="library" class="library"><div class="section-title"><h2>Previous videos &amp; saved projects</h2><p>Existing uploads, videos, approvals and local plans are retained.</p></div><button type="button" id="refresh-button" class="secondary">Refresh library &amp; jobs</button><h3>Saved project settings &amp; plans</h3><div id="project-list"></div><h3>Playable videos</h3><div id="video-library" class="library-grid"></div></section>
+  <footer>ShopReelAI <span>Local editing. Paid cloud generation. Manual sharing only.</span></footer>
+</main>
+</body></html>

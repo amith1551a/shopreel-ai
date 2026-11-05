@@ -1,0 +1,10 @@
+{
+  "render": "PASS",
+  "dimensions": "720x1280",
+  "duration_seconds": 9,
+  "fps": 24,
+  "decoded_scenes": 3,
+  "approval": "PASS",
+  "local_queue": "PASS",
+  "social_published": false
+}

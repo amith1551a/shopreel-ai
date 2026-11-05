@@ -1,0 +1,23 @@
+# Legacy Python studio only. The browser CPU app uses package.json, not Python.
+# Keep these pins for reopening the original library/generator; do not install for browser mode.
+blinker==1.9.0
+click==8.5.0
+colorama==0.4.6
+decorator==5.3.1
+Flask==3.1.2
+ImageIO==2.38.1
+imageio-ffmpeg==0.7.0
+itsdangerous==2.2.0
+Jinja2==3.1.6
+MarkupSafe==3.0.4
+moviepy==2.2.1
+numpy==2.5.4
+pillow==11.3.0
+proglog==0.1.12
+python-dotenv==1.1.1
+pytz==2024.1
+tqdm==4.70.1
+Werkzeug==3.1.9
+# Higgsfield AI SDK (optional - install when HF_CREDENTIALS available)
+# higgsfield-client (requires official SDK from Higgsfield)
+
