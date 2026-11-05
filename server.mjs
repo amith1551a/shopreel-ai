@@ -1,106 +1,231 @@
-import { createServer } from 'node:http';
-import { createReadStream, existsSync, statSync } from 'node:fs';
-import { resolve, extname, sep } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { DatabaseSync } from 'node:sqlite';
+/**
+ * ShopReel AI - Production Server Entry Point
+ * 
+ * Hostinger Deployment Configuration:
+ * - Framework: Vite + Node.js HTTP server
+ * - Node.js: 22.x (requires 22.13+)
+ * - Branch: main
+ * - Build: npm run build
+ * - Start: node server.mjs
+ * - Output: dist/
+ * 
+ * This server:
+ * 1. Provides Express-based REST API (Phase 1+)
+ * 2. Serves Vite-built SPA (dist/)
+ * 3. Handles media file serving (/media/*)
+ * 4. Includes security headers and error handling
+ * 
+ * Local Development: npm start (uses backend/index.mjs with --watch)
+ * Hostinger Production: node server.mjs (this file)
+ */
 
-const root = fileURLToPath(new URL('.', import.meta.url));
-const loopback = new Set(['localhost', '127.0.0.1', '[::1]']);
-export function securityHeaders(production = true, encoderWorker = false) {
-  return {
-    'Content-Security-Policy': `default-src 'self'; script-src 'self' 'wasm-unsafe-eval'${encoderWorker ? " 'unsafe-eval'" : ''}${production ? '' : " 'nonce-shopreel-local-dev'"}; worker-src 'self' blob:; img-src 'self' blob: data:; media-src 'self' blob:; style-src 'self'${production ? '' : " 'nonce-shopreel-local-dev'"}; connect-src 'self'${production ? '' : ' ws://127.0.0.1:5050 ws://localhost:5050'}; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'`,
-    'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY',
-    'Referrer-Policy': 'no-referrer',
-    'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
-  };
-}
-function json(res, code, body) {
-  res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-  res.end(JSON.stringify(body));
-}
-function serveFile(req, res, path, type) {
-  if (!req.headers.range && /\bgzip\b/.test(req.headers['accept-encoding'] ?? '') && existsSync(path + '.gz')) {
-    res.setHeader('Content-Encoding', 'gzip'); res.setHeader('Vary', 'Accept-Encoding');
-    res.writeHead(200, { 'Content-Type': type, 'Content-Length': statSync(path + '.gz').size, 'Cache-Control': 'no-cache' });
-    if (req.method === 'HEAD') res.end(); else createReadStream(path + '.gz').pipe(res);
-    return;
-  }
-  const size = statSync(path).size;
-  const range = req.headers.range;
-  const headers = { 'Content-Type': type, 'Accept-Ranges': 'bytes', 'Cache-Control': 'no-cache' };
-  if (range) {
-    const match = /^bytes=(\d+)-(\d*)$/.exec(range);
-    if (!match) { res.writeHead(416, { 'Content-Range': `bytes */${size}` }); res.end(); return; }
-    const start = Number(match[1]), end = match[2] ? Math.min(Number(match[2]), size - 1) : size - 1;
-    if (start > end || start >= size) { res.writeHead(416, { 'Content-Range': `bytes */${size}` }); res.end(); return; }
-    res.writeHead(206, { ...headers, 'Content-Range': `bytes ${start}-${end}/${size}`, 'Content-Length': end - start + 1 });
-    if (req.method === 'HEAD') res.end(); else createReadStream(path, { start, end }).pipe(res);
-  } else {
-    res.writeHead(200, { ...headers, 'Content-Length': size });
-    if (req.method === 'HEAD') res.end(); else createReadStream(path).pipe(res);
-  }
-}
+import 'dotenv/config.js';
+import express from 'express';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
+import { existsSync } from 'node:fs';
+import fs from 'node:fs';
+
+import { apiConfigRoute } from './backend/routes/config.mjs';
+import { getVideosRoute, getMediaRoute } from './backend/routes/videos.mjs';
+import { errorHandler } from './backend/middleware/errors.mjs';
+import { securityHeaders } from './backend/middleware/security.mjs';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const ROOT = __dirname;
+
+const app = express();
+const PORT = process.env.PORT || 5050;
+const NODE_ENV = process.env.NODE_ENV || 'production';
+const production = NODE_ENV === 'production';
+
+// ============================================================================
+// LOCAL LIBRARY HANDLER (for vite dev middleware)
+// ============================================================================
+
+/**
+ * localLibrary - Serves local library files during development
+ * Returns true if request was handled, false otherwise
+ */
 export function localLibrary(req, res) {
-  const url = new URL(req.url ?? '/', 'http://localhost');
-  if (!url.pathname.startsWith('/api/legacy') && !url.pathname.startsWith('/legacy-media/')) return false;
-  const host = new URL(`http://${req.headers.host ?? 'invalid'}`).hostname;
-  if (process.env.NODE_ENV === 'production' || !loopback.has(host) || !['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress ?? '')) {
-    json(res, 403, { error: 'Legacy server files are accessible only on this computer, never in production.' }); return true;
-  }
-  if (!['GET', 'HEAD'].includes(req.method ?? '')) { json(res, 405, { error: 'Read-only library; uploads are never accepted.' }); return true; }
-  if (url.pathname === '/api/legacy') {
-    const path = resolve(root, 'data', 'studio.sqlite3');
-    if (!existsSync(path)) { json(res, 200, { videos: [], projects: [] }); return true; }
-    let db;
-    try {
-      db = new DatabaseSync(path, { readOnly: true });
-      const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(row => row.name);
-      json(res, 200, {
-        videos: tables.includes('videos') ? db.prepare('SELECT * FROM videos ORDER BY created_at DESC').all() : [],
-        projects: tables.includes('projects') ? db.prepare('SELECT id,brief,plan,created_at FROM projects ORDER BY created_at DESC').all() : [],
-      });
-    } catch (error) {
-      console.error('Cannot open read-only local library:', error instanceof Error ? error.message : 'unknown error');
-      json(res, 503, { error: 'Existing library could not be read. Files are untouched; check the terminal.' });
-    } finally { db?.close(); }
+  // Only serve library files in development
+  if (production) return false;
+
+  // Check for library file requests (e.g., /library/player.mjs)
+  if (!req.url.startsWith('/library/')) return false;
+
+  // Prevent directory traversal
+  if (req.url.includes('..')) {
+    res.status(400).json({ error: 'Invalid path' });
     return true;
   }
-  const match = /^\/legacy-media\/([a-f0-9]{32})\/(video\.mp4|poster\.jpg|product\.png|subtitles\.srt)$/.exec(url.pathname);
-  if (!match) { json(res, 404, { error: 'Media not found.' }); return true; }
-  const path = resolve(root, 'outputs', match[1], match[2]);
-  if (!existsSync(path)) { json(res, 404, { error: 'Media not found.' }); return true; }
-  serveFile(req, res, path, { '.mp4': 'video/mp4', '.jpg': 'image/jpeg', '.png': 'image/png', '.srt': 'application/x-subrip' }[extname(path)]);
-  return true;
+
+  try {
+    // Construct safe path to library file
+    const libraryPath = resolve(ROOT, 'src', req.url.replace(/^\/library\//, ''));
+    
+    // Verify path is within src directory
+    const srcPath = resolve(ROOT, 'src');
+    if (!libraryPath.startsWith(srcPath)) {
+      res.status(403).json({ error: 'Forbidden' });
+      return true;
+    }
+
+    if (!existsSync(libraryPath)) {
+      res.status(404).json({ error: 'Library file not found' });
+      return true;
+    }
+
+    // Set content type based on file extension
+    const ext = libraryPath.split('.').pop()?.toLowerCase();
+    const mimeTypes = {
+      mjs: 'application/javascript',
+      js: 'application/javascript',
+      ts: 'text/typescript',
+      json: 'application/json',
+      css: 'text/css',
+    };
+
+    res.setHeader('Content-Type', mimeTypes[ext] || 'application/octet-stream');
+    res.setHeader('Cache-Control', 'no-store');
+    res.sendFile(libraryPath);
+    return true;
+  } catch (err) {
+    console.error('Error serving library file:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+    return true;
+  }
 }
-export function startServer() {
-  const publicDir = resolve(root, 'dist');
-  if (!existsSync(resolve(publicDir, 'index.html'))) throw new Error('Production build missing. Run npm run build first.');
-  const production = process.env.NODE_ENV === 'production';
-  const allowed = new Set((process.env.SHOPREEL_ALLOWED_HOSTS ?? 'localhost,127.0.0.1,[::1]').split(',').map(x => x.trim()));
-  const server = createServer((req, res) => {
-    // The pinned Emscripten encoder generates binding functions inside its isolated worker.
-    // Never allow dynamic JavaScript evaluation in the page itself.
-    for (const [name, value] of Object.entries(securityHeaders(true, /^\/assets\/render\.worker-[\w-]+\.js(?:\?|$)/.test(req.url ?? '')))) res.setHeader(name, value);
-    let url, host;
-    try {
-      url = new URL(req.url ?? '/', 'http://localhost');
-      host = new URL(`http://${req.headers.host ?? 'invalid'}`).hostname;
-    } catch { json(res, 400, { error: 'Invalid request.' }); return; }
-    if (!allowed.has(host)) { json(res, 403, { error: 'Host not allowed. Configure the exact ShopReel domain.' }); return; }
-    if (localLibrary(req, res)) return;
-    if (!['GET', 'HEAD'].includes(req.method ?? '')) { json(res, 405, { error: 'This server only serves application assets. Rendering happens in your browser.' }); return; }
-    if (url.pathname.startsWith('/api/')) { json(res, 404, { error: 'No rendering API.' }); return; }
-    let decoded;
-    try { decoded = decodeURIComponent(url.pathname); } catch { json(res, 400, { error: 'Invalid path.' }); return; }
-    const path = resolve(publicDir, '.' + decoded);
-    if (!path.startsWith(publicDir + sep) && path !== publicDir) { json(res, 403, { error: 'Invalid path.' }); return; }
-    const actual = decoded === '/' ? resolve(publicDir, 'index.html') : path;
-    if (!existsSync(actual) || !statSync(actual).isFile()) { json(res, 404, { error: 'Asset not found.' }); return; }
-    const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.wasm': 'application/wasm', '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.json': 'application/json', '.txt': 'text/plain; charset=utf-8' };
-    serveFile(req, res, actual, types[extname(actual)] ?? 'application/octet-stream');
+
+// Export securityHeaders function for vite
+export { securityHeaders };
+
+// ============================================================================
+// MIDDLEWARE
+// ============================================================================
+
+// Body parsing
+app.use(express.json({ limit: '80mb' }));
+app.use(express.urlencoded({ limit: '80mb', extended: true }));
+
+// Security headers
+app.use((req, res, next) => {
+  const headers = securityHeaders(production);
+  Object.entries(headers).forEach(([key, value]) => {
+    res.setHeader(key, value);
   });
-  const port = Number(process.env.PORT ?? 5050);
-  server.listen(port, production ? '0.0.0.0' : '127.0.0.1', () => console.log(`ShopReel browser studio listening on port ${port}; encoding is client-side.`));
-  return server;
+  next();
+});
+
+// ============================================================================
+// STATIC FILES
+// ============================================================================
+
+// Serve production build (dist/)
+const distPath = resolve(ROOT, 'dist');
+if (existsSync(distPath)) {
+  app.use(express.static(distPath, {
+    maxAge: production ? '1d' : '0',
+    etag: false,
+  }));
 }
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) startServer();
+
+// Serve media files (videos, images, etc.)
+const outputPath = resolve(ROOT, 'outputs');
+if (existsSync(outputPath)) {
+  app.use('/media', express.static(outputPath, {
+    maxAge: '1h',
+    etag: false,
+  }));
+}
+
+// ============================================================================
+// API ROUTES - PHASE 1
+// ============================================================================
+
+// Health check
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    status: 'ok', 
+    env: NODE_ENV, 
+    version: '2.0.0-phase1',
+    backend: 'Express',
+    deployment: production ? 'Hostinger' : 'Local',
+  });
+});
+
+// Configuration endpoint (imported from backend/routes/config.mjs)
+app.get('/api/config', apiConfigRoute);
+
+// Video listing (imported from backend/routes/videos.mjs)
+app.get('/api/videos', getVideosRoute);
+
+// Media file serving with range request support (imported from backend/routes/videos.mjs)
+app.get('/media/:videoId/:filename', getMediaRoute);
+
+// ============================================================================
+// SPA FALLBACK ROUTE
+// ============================================================================
+
+// All non-API routes serve index.html (SPA routing)
+app.get('*', (req, res) => {
+  const indexPath = resolve(ROOT, 'dist', 'index.html');
+  
+  if (!existsSync(indexPath)) {
+    return res.status(400).json({
+      error: 'Production build not found',
+      instructions: 'Run: npm run build',
+    });
+  }
+
+  res.setHeader('Cache-Control', 'no-store');
+  res.sendFile(indexPath);
+});
+
+// ============================================================================
+// ERROR HANDLER
+// ============================================================================
+
+app.use(errorHandler);
+
+// ============================================================================
+// SERVER STARTUP
+// ============================================================================
+
+const server = app.listen(PORT, production ? '0.0.0.0' : '127.0.0.1', () => {
+  console.log(`
+╔════════════════════════════════════════════════════╗
+║ ShopReel AI - Production Server                    ║
+╚════════════════════════════════════════════════════╝
+
+✓ Server running
+  URL: ${production ? 'https://your-domain.com' : 'http://localhost:' + PORT}
+  Environment: ${NODE_ENV}
+  Port: ${PORT}
+  Binding: ${production ? '0.0.0.0 (public)' : '127.0.0.1 (local)'}
+
+API Routes Ready:
+  ✅ GET /api/health              → Health check
+  ✅ GET /api/config              → App configuration
+  ✅ GET /api/videos              → Video listing (Phase 1)
+  ✅ GET /media/:id/:file         → File serving with ranges
+  ✅ GET / + routes               → SPA (dist/index.html)
+
+Build Info:
+  SPA directory: ${distPath}
+  Media directory: ${outputPath}
+  Build timestamp: ${new Date().toISOString()}
+`);
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, shutting down gracefully...');
+  server.close(() => {
+    console.log('Server closed');
+    process.exit(0);
+  });
+});
+
+export default app;
