@@ -19,6 +19,35 @@ class BudgetGuardError(RuntimeError):
     pass
 
 
+# Credit system constants
+# 1 credit = $1 / 100,000 (100k credits = $1 of cost)
+# Displayed: 20,000 credits per user per 2 hours
+# Example: 15,000 credits required for $0.15 video
+CREDITS_PER_DOLLAR = 100_000
+
+
+def cents_to_credits(cents: int) -> int:
+    """Convert USD cents to credits (integer arithmetic).
+    
+    100,000 credits = $1 USD
+    100 cents = $1 USD
+    Therefore: 1 credit ≈ 0.01 cents, or 1 cent ≈ 1000 credits
+    
+    Always rounds up to ensure no undercharging.
+    """
+    credits = (cents * 1000 + 999) // 1000  # Ceiling division
+    return credits
+
+
+def credits_to_cents(credits: int) -> int:
+    """Convert credits to USD cents.
+    
+    Note: This is for backend reference only. Never display cents to users.
+    """
+    cents = credits // 1000
+    return cents
+
+
 class BudgetGuard:
     """Atomic budget tracking with persistent ledger."""
     

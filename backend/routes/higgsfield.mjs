@@ -7,9 +7,29 @@
  * - POST /submit-job: Submit generation job (paid, reserves budget)
  * - GET /job/:jobId/status: Poll job status
  * - GET /budget: Get user budget status
+ * 
+ * Credit System:
+ * - 100,000 ShopReel credits = $1 USD cost to provider
+ * - 20,000 credits available per user every 2 hours
+ * - Example: $0.15 video = 15,000 credits
+ * - Daily cap: $0.25 (25,000 credits)
+ * - Monthly cap: $20 (2,000,000 credits)
  */
 
 import { ScriptParser, StoryboardEditor } from '../script-parser.mjs';
+
+// Credit conversion helpers
+const CREDITS_PER_CENT = 1000;  // 1 cent = 1000 credits
+const CREDITS_PER_DOLLAR = 100_000;  // 1 dollar = 100k credits
+
+function centsToCredits(cents) {
+  // Ceiling division to never undercharge
+  return Math.ceil(cents * CREDITS_PER_CENT);
+}
+
+function creditsToDisplay(credits) {
+  return credits.toLocaleString();
+}
 
 /**
  * POST /api/higgsfield/parse-script
@@ -73,9 +93,9 @@ export async function parseScriptRoute(req, res) {
  * Preview generation cost without commitment
  * 
  * Request: { model, duration_seconds, user_id }
- * Response: { estimated_cost_usd, can_proceed, budget, blocked_reason? }
+ * Response: { estimated_cost_usd, estimated_cost_credits, can_proceed, budget, blocked_reason? }
  * 
- * Phase 1: Returns mock pricing
+ * Phase 1: Returns mock pricing with credit conversion
  * Future: Will integrate with real budget tracking
  */
 export async function previewCostRoute(req, res) {
@@ -99,20 +119,34 @@ export async function previewCostRoute(req, res) {
     const costPerSecond = 0.05; // $0.05 per second
     const estimatedCostUsd = duration_seconds * costPerSecond;
     const estimatedCostCents = Math.round(estimatedCostUsd * 100);
+    const estimatedCostCredits = centsToCredits(estimatedCostCents);
 
     // Mock budget (always has budget in Phase 1)
+    const today_limit_cents = 10000;  // $100
+    const today_limit_credits = centsToCredits(today_limit_cents);
+    const month_limit_cents = 100000;  // $1000
+    const month_limit_credits = centsToCredits(month_limit_cents);
+
     const mockBudget = {
       today_used_cents: 0,
       today_pending_cents: 0,
-      today_available_cents: 10000, // $100
+      today_available_cents: 10000,
       today_limit_cents: 10000,
       today_percent: 0,
+      today_used_credits: 0,
+      today_pending_credits: 0,
+      today_available_credits: today_limit_credits,
+      today_limit_credits: today_limit_credits,
 
       month_used_cents: 0,
       month_pending_cents: 0,
-      month_available_cents: 100000, // $1000
+      month_available_cents: 100000,
       month_limit_cents: 100000,
       month_percent: 0,
+      month_used_credits: 0,
+      month_pending_credits: 0,
+      month_available_credits: month_limit_credits,
+      month_limit_credits: month_limit_credits,
 
       next_daily_reset_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
       warn_daily: false,
@@ -126,6 +160,7 @@ export async function previewCostRoute(req, res) {
       duration_seconds,
       estimated_cost_usd: estimatedCostUsd,
       estimated_cost_cents: estimatedCostCents,
+      estimated_cost_credits: estimatedCostCredits,
       budget: mockBudget,
       can_proceed: true,
     });
@@ -142,7 +177,7 @@ export async function previewCostRoute(req, res) {
  * Submit a generation job after user approval
  * 
  * Request: { job_id, user_id, model, script, duration_seconds, image_project_id? }
- * Response: { job_id, status, provider_job_id?, estimated_cost_usd, budget }
+ * Response: { job_id, status, provider_job_id?, estimated_cost_usd, estimated_cost_credits, budget }
  * 
  * Phase 1: Returns mock job (no actual generation)
  * Returns 402 Payment Required if budget exceeded
@@ -161,20 +196,35 @@ export async function submitJobRoute(req, res) {
     // Phase 1: Mock submission (no actual cost, no provider integration)
     const costPerSecond = 0.05;
     const estimatedCostUsd = duration_seconds * costPerSecond;
+    const estimatedCostCents = Math.round(estimatedCostUsd * 100);
+    const estimatedCostCredits = centsToCredits(estimatedCostCents);
 
     // Mock budget (always available in Phase 1)
+    const today_limit_cents = 10000;
+    const today_limit_credits = centsToCredits(today_limit_cents);
+    const month_limit_cents = 100000;
+    const month_limit_credits = centsToCredits(month_limit_cents);
+
     const mockBudget = {
       today_used_cents: Math.round(estimatedCostUsd * 100),
       today_pending_cents: 0,
       today_available_cents: 10000 - Math.round(estimatedCostUsd * 100),
       today_limit_cents: 10000,
       today_percent: Math.round((estimatedCostUsd / 100) * 100),
+      today_used_credits: centsToCredits(Math.round(estimatedCostUsd * 100)),
+      today_pending_credits: 0,
+      today_available_credits: centsToCredits(10000 - Math.round(estimatedCostUsd * 100)),
+      today_limit_credits: today_limit_credits,
 
       month_used_cents: Math.round(estimatedCostUsd * 100),
       month_pending_cents: 0,
       month_available_cents: 100000 - Math.round(estimatedCostUsd * 100),
       month_limit_cents: 100000,
       month_percent: Math.round((estimatedCostUsd / 1000) * 100),
+      month_used_credits: centsToCredits(Math.round(estimatedCostUsd * 100)),
+      month_pending_credits: 0,
+      month_available_credits: centsToCredits(100000 - Math.round(estimatedCostUsd * 100)),
+      month_limit_credits: month_limit_credits,
 
       next_daily_reset_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
       warn_daily: false,
@@ -188,6 +238,7 @@ export async function submitJobRoute(req, res) {
       status: 'queued',
       provider_job_id: `mock-${job_id}`,
       estimated_cost_usd: estimatedCostUsd,
+      estimated_cost_credits: estimatedCostCredits,
       budget: mockBudget,
     });
   } catch (error) {
@@ -240,9 +291,11 @@ export async function getJobStatusRoute(req, res) {
  * Get user budget status
  * 
  * Query: { user_id }
- * Response: { today_*, month_*, next_daily_reset_at, warn_*, blocked_* }
+ * Response: { today_*, month_*, next_daily_reset_at, warn_*, blocked_*, *_credits }
  * 
  * Phase 1: Returns mock budget (unlimited)
+ * Displays: Large comma-formatted credit amounts
+ * Internal: Tracks cents, never exposed to user-facing display
  */
 export async function getBudgetRoute(req, res) {
   try {
@@ -255,18 +308,46 @@ export async function getBudgetRoute(req, res) {
     }
 
     // Phase 1: Mock budget (unlimited)
+    // Daily: 20,000 credits per 2 hours = 240,000 per day = ~$2.40
+    // Actually set to higher for Phase 1 testing: 10,000 cents = $100
+    const today_limit_cents = 10000;
+    const today_limit_credits = centsToCredits(today_limit_cents);
+    
+    const month_limit_cents = 100000;
+    const month_limit_credits = centsToCredits(month_limit_cents);
+    
+    const today_used_cents = 0;
+    const today_pending_cents = 0;
+    const month_used_cents = 0;
+    const month_pending_cents = 0;
+    
+    const today_total_cents = today_used_cents + today_pending_cents;
+    const month_total_cents = month_used_cents + month_pending_cents;
+
     return res.json({
-      today_used_cents: 0,
-      today_pending_cents: 0,
-      today_available_cents: 10000,
-      today_limit_cents: 10000,
+      // Cent values (backend reference only, not displayed)
+      today_used_cents: today_used_cents,
+      today_pending_cents: today_pending_cents,
+      today_available_cents: Math.max(0, today_limit_cents - today_total_cents),
+      today_limit_cents: today_limit_cents,
       today_percent: 0,
 
-      month_used_cents: 0,
-      month_pending_cents: 0,
-      month_available_cents: 100000,
-      month_limit_cents: 100000,
+      month_used_cents: month_used_cents,
+      month_pending_cents: month_pending_cents,
+      month_available_cents: Math.max(0, month_limit_cents - month_total_cents),
+      month_limit_cents: month_limit_cents,
       month_percent: 0,
+
+      // Credit values (user-facing display)
+      today_used_credits: centsToCredits(today_used_cents),
+      today_pending_credits: centsToCredits(today_pending_cents),
+      today_available_credits: centsToCredits(Math.max(0, today_limit_cents - today_total_cents)),
+      today_limit_credits: today_limit_credits,
+
+      month_used_credits: centsToCredits(month_used_cents),
+      month_pending_credits: centsToCredits(month_pending_cents),
+      month_available_credits: centsToCredits(Math.max(0, month_limit_cents - month_total_cents)),
+      month_limit_credits: month_limit_credits,
 
       next_daily_reset_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
       warn_daily: false,

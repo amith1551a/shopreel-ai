@@ -4,6 +4,8 @@ import {
   BudgetStatus,
   Storyboard,
   formatCents,
+  formatCredits,
+  formatCreditNumber,
   timeUntilReset,
   BudgetExceededError,
 } from './higgsfield';
@@ -22,6 +24,7 @@ export function HiggsFieldWorkflow({ projectId, onVideoGenerated }: HiggsFieldWo
   const [duration, setDuration] = useState(10);
   const [budget, setBudget] = useState<BudgetStatus>();
   const [costUsd, setCostUsd] = useState<number>();
+  const [costCredits, setCostCredits] = useState<number>();
   const [jobId, setJobId] = useState('');
   const [error, setError] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
@@ -48,6 +51,7 @@ export function HiggsFieldWorkflow({ projectId, onVideoGenerated }: HiggsFieldWo
     try {
       const preview = await client.previewCost(model, duration);
       setCostUsd(preview.estimated_cost_usd);
+      setCostCredits(preview.estimated_cost_credits);
       setBudget(preview.budget);
 
       if (!preview.can_proceed) {
@@ -390,16 +394,16 @@ export function HiggsFieldWorkflow({ projectId, onVideoGenerated }: HiggsFieldWo
       )}
 
       {/* Cost Preview Step */}
-      {step === 'cost-preview' && budget && costUsd !== undefined && (
+      {step === 'cost-preview' && budget && costCredits !== undefined && (
         <div className="workflow-section">
           <div className="cost-preview-box">
-            <div className="cost-label">Estimated Cost</div>
-            <div className="cost-amount">{formatCents(costUsd * 100)}</div>
+            <div className="cost-label">Estimated Credits Required</div>
+            <div className="cost-amount">{formatCreditNumber(costCredits)} credits</div>
           </div>
 
           {/* Budget Display */}
           <div style={{ marginTop: '1.5rem' }}>
-            <div className="workflow-label">Daily Budget ({formatCents(budget.today_limit_cents)})</div>
+            <div className="workflow-label">Daily Budget ({formatCreditNumber((budget as any).today_limit_credits || 0)} credits)</div>
             <div className="budget-bar">
               <div
                 className="budget-fill-daily"
@@ -408,7 +412,7 @@ export function HiggsFieldWorkflow({ projectId, onVideoGenerated }: HiggsFieldWo
                 }}
               >
                 <span className="budget-label">
-                  {formatCents(budget.today_used_cents + budget.today_pending_cents)} / {formatCents(budget.today_limit_cents)}
+                  {formatCreditNumber(((budget as any).today_used_credits || 0) + ((budget as any).today_pending_credits || 0))} / {formatCreditNumber((budget as any).today_limit_credits || 0)}
                 </span>
               </div>
             </div>
@@ -420,7 +424,7 @@ export function HiggsFieldWorkflow({ projectId, onVideoGenerated }: HiggsFieldWo
           </div>
 
           <div style={{ marginTop: '1.5rem' }}>
-            <div className="workflow-label">Monthly Budget ({formatCents(budget.month_limit_cents)})</div>
+            <div className="workflow-label">Monthly Budget ({formatCreditNumber((budget as any).month_limit_credits || 0)} credits)</div>
             <div className="budget-bar">
               <div
                 className="budget-fill-monthly"
@@ -429,7 +433,7 @@ export function HiggsFieldWorkflow({ projectId, onVideoGenerated }: HiggsFieldWo
                 }}
               >
                 <span className="budget-label">
-                  {formatCents(budget.month_used_cents + budget.month_pending_cents)} / {formatCents(budget.month_limit_cents)}
+                  {formatCreditNumber(((budget as any).month_used_credits || 0) + ((budget as any).month_pending_credits || 0))} / {formatCreditNumber((budget as any).month_limit_credits || 0)}
                 </span>
               </div>
             </div>

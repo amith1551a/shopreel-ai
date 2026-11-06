@@ -27,6 +27,7 @@ export interface CostPreview {
   duration_seconds: number;
   estimated_cost_usd: number;
   estimated_cost_cents: number;
+  estimated_cost_credits: number;
   budget: BudgetStatus;
   can_proceed: boolean;
   blocked_reason?: string;
@@ -44,6 +45,16 @@ export interface BudgetStatus {
   month_available_cents: number;
   month_limit_cents: number;
   month_percent: number;
+  
+  today_used_credits: number;
+  today_pending_credits: number;
+  today_available_credits: number;
+  today_limit_credits: number;
+  
+  month_used_credits: number;
+  month_pending_credits: number;
+  month_available_credits: number;
+  month_limit_credits: number;
   
   next_daily_reset_at: string;
   warn_daily: boolean;
@@ -240,6 +251,21 @@ export class BudgetExceededError extends Error {
  */
 export function formatCents(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
+}
+
+/**
+ * Format credits with comma separators (e.g., "15,000 credits").
+ * Displays user-facing credit balance.
+ */
+export function formatCredits(credits: number): string {
+  return `${credits.toLocaleString()} credits`;
+}
+
+/**
+ * Format just the credit number with commas (e.g., "15,000").
+ */
+export function formatCreditNumber(credits: number): string {
+  return credits.toLocaleString();
 }
 
 /**
