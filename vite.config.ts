@@ -2,7 +2,7 @@ import { defineConfig } from 'vitest/config';
 import type { Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { readFileSync } from 'node:fs';
-import { localLibrary, securityHeaders } from './server.mjs';
+import { localLibrary, securityHeaders } from './backend/lib.mjs';
 
 const encoderModule = (): Plugin => ({
   name: 'software-encoder-esm',

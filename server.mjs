@@ -29,7 +29,7 @@ import fs from 'node:fs';
 import { apiConfigRoute } from './backend/routes/config.mjs';
 import { getVideosRoute, getMediaRoute } from './backend/routes/videos.mjs';
 import { errorHandler } from './backend/middleware/errors.mjs';
-import { securityHeaders } from './backend/middleware/security.mjs';
+import { localLibrary, securityHeaders } from './backend/lib.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -39,67 +39,6 @@ const app = express();
 const PORT = process.env.PORT || 5050;
 const NODE_ENV = process.env.NODE_ENV || 'production';
 const production = NODE_ENV === 'production';
-
-// ============================================================================
-// LOCAL LIBRARY HANDLER (for vite dev middleware)
-// ============================================================================
-
-/**
- * localLibrary - Serves local library files during development
- * Returns true if request was handled, false otherwise
- */
-export function localLibrary(req, res) {
-  // Only serve library files in development
-  if (production) return false;
-
-  // Check for library file requests (e.g., /library/player.mjs)
-  if (!req.url.startsWith('/library/')) return false;
-
-  // Prevent directory traversal
-  if (req.url.includes('..')) {
-    res.status(400).json({ error: 'Invalid path' });
-    return true;
-  }
-
-  try {
-    // Construct safe path to library file
-    const libraryPath = resolve(ROOT, 'src', req.url.replace(/^\/library\//, ''));
-    
-    // Verify path is within src directory
-    const srcPath = resolve(ROOT, 'src');
-    if (!libraryPath.startsWith(srcPath)) {
-      res.status(403).json({ error: 'Forbidden' });
-      return true;
-    }
-
-    if (!existsSync(libraryPath)) {
-      res.status(404).json({ error: 'Library file not found' });
-      return true;
-    }
-
-    // Set content type based on file extension
-    const ext = libraryPath.split('.').pop()?.toLowerCase();
-    const mimeTypes = {
-      mjs: 'application/javascript',
-      js: 'application/javascript',
-      ts: 'text/typescript',
-      json: 'application/json',
-      css: 'text/css',
-    };
-
-    res.setHeader('Content-Type', mimeTypes[ext] || 'application/octet-stream');
-    res.setHeader('Cache-Control', 'no-store');
-    res.sendFile(libraryPath);
-    return true;
-  } catch (err) {
-    console.error('Error serving library file:', err);
-    res.status(500).json({ error: 'Internal Server Error' });
-    return true;
-  }
-}
-
-// Export securityHeaders function for vite
-export { securityHeaders };
 
 // ============================================================================
 // MIDDLEWARE
@@ -190,15 +129,11 @@ app.get('*', (req, res) => {
 app.use(errorHandler);
 
 // ============================================================================
-// SERVER STARTUP (Only when this file is directly executed, not imported)
+// SERVER STARTUP - Always listens when module loads
 // ============================================================================
 
-// Check if this file is being run directly (not imported by vite.config.ts or other files)
-const isDirectExecution = process.argv[1] === new URL(import.meta.url).pathname;
-
-if (isDirectExecution) {
-  const server = app.listen(PORT, production ? '0.0.0.0' : '127.0.0.1', () => {
-    console.log(`
+const server = app.listen(PORT, production ? '0.0.0.0' : '127.0.0.1', () => {
+  console.log(`
 ╔════════════════════════════════════════════════════╗
 ║ ShopReel AI - Production Server                    ║
 ╚════════════════════════════════════════════════════╝
@@ -221,14 +156,13 @@ Build Info:
   Media directory: ${outputPath}
   Build timestamp: ${new Date().toISOString()}
 `);
-  });
+});
 
-  // Graceful shutdown
-  process.on('SIGTERM', () => {
-    console.log('SIGTERM received, shutting down gracefully...');
-    server.close(() => {
-      console.log('Server closed');
-      process.exit(0);
-    });
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, shutting down gracefully...');
+  server.close(() => {
+    console.log('Server closed');
+    process.exit(0);
   });
-}
+});
