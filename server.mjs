@@ -30,6 +30,13 @@ import { apiConfigRoute } from './backend/routes/config.mjs';
 import { getVideosRoute, getMediaRoute } from './backend/routes/videos.mjs';
 import { errorHandler } from './backend/middleware/errors.mjs';
 import { localLibrary, securityHeaders } from './backend/lib.mjs';
+import {
+  parseScriptRoute,
+  previewCostRoute,
+  submitJobRoute,
+  getJobStatusRoute,
+  getBudgetRoute,
+} from './backend/routes/higgsfield.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -102,6 +109,25 @@ app.get('/api/videos', getVideosRoute);
 
 // Media file serving with range request support (imported from backend/routes/videos.mjs)
 app.get('/media/:videoId/:filename', getMediaRoute);
+
+// ============================================================================
+// HIGGSFIELD API ROUTES - Video Generation Platform
+// ============================================================================
+
+// Parse product brief into editable storyboard (free, no auth)
+app.post('/api/higgsfield/parse-script', parseScriptRoute);
+
+// Preview generation cost (free, requires user_id)
+app.post('/api/higgsfield/preview-cost', previewCostRoute);
+
+// Submit generation job (paid, reserves budget)
+app.post('/api/higgsfield/submit-job', submitJobRoute);
+
+// Poll job status and results
+app.get('/api/higgsfield/job/:jobId/status', getJobStatusRoute);
+
+// Get user budget status
+app.get('/api/higgsfield/budget', getBudgetRoute);
 
 // ============================================================================
 // SPA FALLBACK ROUTE
