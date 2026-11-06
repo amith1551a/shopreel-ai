@@ -190,11 +190,15 @@ app.get('*', (req, res) => {
 app.use(errorHandler);
 
 // ============================================================================
-// SERVER STARTUP
+// SERVER STARTUP (Only when this file is directly executed, not imported)
 // ============================================================================
 
-const server = app.listen(PORT, production ? '0.0.0.0' : '127.0.0.1', () => {
-  console.log(`
+// Check if this file is being run directly (not imported by vite.config.ts or other files)
+const isDirectExecution = process.argv[1] === new URL(import.meta.url).pathname;
+
+if (isDirectExecution) {
+  const server = app.listen(PORT, production ? '0.0.0.0' : '127.0.0.1', () => {
+    console.log(`
 ╔════════════════════════════════════════════════════╗
 ║ ShopReel AI - Production Server                    ║
 ╚════════════════════════════════════════════════════╝
@@ -217,15 +221,14 @@ Build Info:
   Media directory: ${outputPath}
   Build timestamp: ${new Date().toISOString()}
 `);
-});
-
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('SIGTERM received, shutting down gracefully...');
-  server.close(() => {
-    console.log('Server closed');
-    process.exit(0);
   });
-});
 
-export default app;
+  // Graceful shutdown
+  process.on('SIGTERM', () => {
+    console.log('SIGTERM received, shutting down gracefully...');
+    server.close(() => {
+      console.log('Server closed');
+      process.exit(0);
+    });
+  });
+}
