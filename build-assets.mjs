@@ -2,6 +2,8 @@ import { readdir, readFile, writeFile, mkdir, cp } from 'node:fs/promises';
 import { resolve, join, extname } from 'node:path';
 import { gzipSync } from 'node:zlib';
 
+const isBuildOnly = process.argv.includes('--build-only');
+
 const dist = resolve('dist');
 const notices = resolve(dist, 'licenses');
 await mkdir(notices, { recursive: true });
@@ -26,3 +28,9 @@ async function compress(directory) {
 }
 await compress(dist);
 console.log('Prepared local gzip assets and third-party notices.');
+
+// Exit explicitly in build-only mode to prevent Express server startup
+if (isBuildOnly) {
+  console.log('Build assets complete (--build-only mode). Exiting.');
+  process.exit(0);
+}

@@ -9,7 +9,7 @@
     "dev:server": "node --watch backend/index.mjs",
     "postinstall": "node hostinger-prebuild.mjs",
     "prebuild": "node hostinger-prebuild.mjs",
-    "build": "npm install --include=dev && tsc -b && vite build && node build-assets.mjs && npm prune --production",
+    "build": "npm install --include=dev && tsc -b && vite build && node build-assets.mjs --build-only && npm prune --production",
     "build:backend": "echo 'Backend uses native .mjs (no compilation needed)'",
     "start": "node server.mjs",
     "start:legacy": "python app.py",
